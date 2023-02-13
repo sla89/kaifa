@@ -135,3 +135,14 @@ Press CTRL+C
 
 Possible by killing the process
 
+### Docker
+
+Run the following build command in the root directory
+
+`docker build -f docker/Dockerfile -t kaifa-reader .`
+
+Start container with
+
+`docker run --device=/dev/ttyUSB0 -v /etc/kaifa_reader/config/:/etc/kaifareader/ -v /var/logs/:/var/log/kaifareader/ kaifa-reader:latest /bin/sh`
+
+> Note: adapt the path to the volumes as you need it.
