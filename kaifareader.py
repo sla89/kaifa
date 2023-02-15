@@ -1,4 +1,4 @@
-#/usr/bin/python3
+# /usr/bin/python3
 
 import sys
 import re
@@ -10,10 +10,12 @@ import signal
 import logging
 from logging.handlers import RotatingFileHandler
 import paho.mqtt.client as mqtt
-
+import json
 #
 # Trap CTRL+C
 #
+
+
 def signal_handler(sig, frame):
     print('Aborted by user with Ctrl+C!')
     g_ser.close()
@@ -35,8 +37,10 @@ class Logger:
 
     def init(self):
         self._logger = logging.getLogger('kaifa')
-        handler = RotatingFileHandler(self._logfile, maxBytes=1024*1024*2, backupCount=1)
-        formatter = logging.Formatter('%(asctime)s [%(levelname)s]:  %(message)s')
+        handler = RotatingFileHandler(
+            self._logfile, maxBytes=1024*1024*2, backupCount=1)
+        formatter = logging.Formatter(
+            '%(asctime)s [%(levelname)s]:  %(message)s')
         handler.setFormatter(formatter)
         self._logger.addHandler(handler)
         self._logger.setLevel(self._level)
@@ -84,6 +88,7 @@ class Constants:
     config_file = "/etc/kaifareader/meter.json"
     export_format_solarview = "SOLARVIEW"
 
+
 class DataType:
     NullData = 0x00
     Boolean = 0x03
@@ -109,6 +114,7 @@ class DataType:
     Array = 0x01
     Structure = 0x02
     CompactArray = 0x13
+
 
 class Config:
     def __init__(self, file):
@@ -213,9 +219,11 @@ class Obis:
     RealPowerIn = to_bytes("1.0.1.7.0.255")
     RealPowerOut = to_bytes("1.0.2.7.0.255")
     RealEnergyIn = to_bytes("1.0.1.8.0.255")
-    RealEnergyIn_S = '1.8.0'   # String of Positive active energy (A+) total [Wh] (needed for export)
+    # String of Positive active energy (A+) total [Wh] (needed for export)
+    RealEnergyIn_S = '1.8.0'
     RealEnergyOut = to_bytes("1.0.2.8.0.255")
-    RealEnergyOut_S = '2.8.0'   # String of Negative active energy (A-) total [Wh] (needed for export)
+    # String of Negative active energy (A-) total [Wh] (needed for export)
+    RealEnergyOut_S = '2.8.0'
     ReactiveEnergyIn = to_bytes("1.0.3.8.0.255")
     ReactiveEnergyOut = to_bytes("1.0.4.8.0.255")
     Factor = to_bytes("01.0.13.7.0.255")
@@ -236,7 +244,8 @@ class Exporter:
 
         for key in self._export_map.keys():
             # e.g. 1.8.0(005305.034*kWh)
-            file.write("{}({:010.3F}*kWh)\n".format(key, self._export_map[key]))
+            file.write(
+                "{}({:010.3F}*kWh)\n".format(key, self._export_map[key]))
 
         file.write("!\n")         # End byte
 
@@ -246,7 +255,8 @@ class Exporter:
                 if self._format == Constants.export_format_solarview:
                     self._write_out_solarview(f)
         except Exception as e:
-            g_log.error("Error writing to file {}: {}".format(self._file, str(e)))
+            g_log.error("Error writing to file {}: {}".format(
+                self._file, str(e)))
             return False
 
         return True
@@ -263,12 +273,16 @@ class Decrypt:
         key = binascii.unhexlify(key_hex_string)  # convert to binary stream
         systitle = frame1[11:19]  # systitle at byte 12, length 8
         g_log.debug("SYSTITLE: {}".format(binascii.hexlify(systitle)))
-        ic = frame1[supplier.ic_start_byte:supplier.ic_start_byte+4]   # invocation counter length 4
-        g_log.debug("IC: {} / {}".format(binascii.hexlify(ic), int.from_bytes(ic,'big')))
+        # invocation counter length 4
+        ic = frame1[supplier.ic_start_byte:supplier.ic_start_byte+4]
+        g_log.debug("IC: {} / {}".format(binascii.hexlify(ic),
+                    int.from_bytes(ic, 'big')))
         iv = systitle + ic   # initialization vector
         g_log.debug("IV: {}".format(binascii.hexlify(iv)))
-        data_frame1 = frame1[supplier.enc_data_start_byte:len(frame1) - 2]  # start at byte 26 or 27 (dep on supplier), excluding 2 bytes at end: checksum byte, end byte 0x16
-        data_frame2 = frame2[9:len(frame2) - 2]   # start at byte 10, excluding 2 bytes at end: checksum byte, end byte 0x16
+        # start at byte 26 or 27 (dep on supplier), excluding 2 bytes at end: checksum byte, end byte 0x16
+        data_frame1 = frame1[supplier.enc_data_start_byte:len(frame1) - 2]
+        # start at byte 10, excluding 2 bytes at end: checksum byte, end byte 0x16
+        data_frame2 = frame2[9:len(frame2) - 2]
         g_log.debug("DATA FRAME1\n{}".format(binascii.hexlify(data_frame1)))
         g_log.debug("DATA FRAME1\n{}".format(binascii.hexlify(data_frame2)))
         # print(binascii.hexlify(data_t1))
@@ -296,42 +310,95 @@ class Decrypt:
             if decrypted[pos + 1] != 6:
                 pos += 1
                 continue
-            obis_code = decrypted[pos + 2 : pos + 2 + 6]
+            obis_code = decrypted[pos + 2: pos + 2 + 6]
             data_type = decrypted[pos + 2 + 6]
             pos += 2 + 6 + 1
 
-            g_log.debug("OBIS code {} DataType {}".format(binascii.hexlify(obis_code),data_type))
+            g_log.debug("OBIS code {} DataType {}".format(
+                binascii.hexlify(obis_code), data_type))
             if data_type == DataType.DoubleLongUnsigned:
-                value = int.from_bytes(decrypted[pos : pos + 4], "big")
+                value = int.from_bytes(decrypted[pos: pos + 4], "big")
                 scale = decrypted[pos + 4 + 3]
-                if scale > 128: scale -= 256
+                if scale > 128:
+                    scale -= 256
                 pos += 2 + 8
                 self.obis[obis_code] = value*(10**scale)
-                g_log.debug("DLU: {}, {}, {}".format(value, scale, value*(10**scale)))
-                #print(obis)
+                g_log.debug("DLU: {}, {}, {}".format(
+                    value, scale, value*(10**scale)))
+                # print(obis)
             elif data_type == DataType.LongUnsigned:
-                value = int.from_bytes(decrypted[pos : pos + 2], "big")
+                value = int.from_bytes(decrypted[pos: pos + 2], "big")
                 scale = decrypted[pos + 2 + 3]
-                if scale > 128: scale -= 256
+                if scale > 128:
+                    scale -= 256
                 pos += 8
                 self.obis[obis_code] = value*(10**scale)
-                g_log.debug("LU: {}, {}, {}".format(value, scale, value*(10**scale)))
+                g_log.debug("LU: {}, {}, {}".format(
+                    value, scale, value*(10**scale)))
             elif data_type == DataType.OctetString:
                 octet_len = decrypted[pos]
-                octet = decrypted[pos + 1 : pos + 1 + octet_len]
+                octet = decrypted[pos + 1: pos + 1 + octet_len]
                 pos += 1 + octet_len + 2
                 self.obis[obis_code] = octet
                 g_log.debug("OCTET: {}, {}".format(octet_len, octet))
 
-    def get_act_energy_pos_kwh(self):
-        if Obis.RealEnergyIn in self.obis:
-            return self.obis[Obis.RealEnergyIn] / 1000
+    def get_voltage_l1(self):
+        if Obis.VoltageL1 in self.obis:
+            return self.obis[Obis.VoltageL1]
         else:
             return None
 
-    def get_act_energy_neg_kwh(self):
+    def get_voltage_l2(self):
+        if Obis.VoltageL2 in self.obis:
+            return self.obis[Obis.VoltageL2]
+        else:
+            return None
+
+    def get_voltage_l3(self):
+        if Obis.VoltageL3 in self.obis:
+            return self.obis[Obis.VoltageL3]
+        else:
+            return None
+
+    def get_current_l1(self):
+        if Obis.CurrentL1 in self.obis:
+            return self.obis[Obis.CurrentL1]
+        else:
+            return None
+
+    def get_current_l2(self):
+        if Obis.CurrentL2 in self.obis:
+            return self.obis[Obis.CurrentL2]
+        else:
+            return None
+
+    def get_current_l3(self):
+        if Obis.CurrentL3 in self.obis:
+            return self.obis[Obis.CurrentL3]
+        else:
+            return None
+
+    def get_power_in(self):
+        if Obis.RealPowerIn in self.obis:
+            return self.obis[Obis.RealPowerIn]
+        else:
+            return None
+
+    def get_power_out(self):
+        if Obis.RealPowerOut in self.obis:
+            return self.obis[Obis.RealPowerOut]
+        else:
+            return None
+
+    def get_total_energy_in(self):
+        if Obis.RealEnergyIn in self.obis:
+            return self.obis[Obis.RealEnergyIn] / 1000  # kwh
+        else:
+            return None
+
+    def get_total_energy_out(self):
         if Obis.RealEnergyOut in self.obis:
-            return self.obis[Obis.RealEnergyOut] / 1000
+            return self.obis[Obis.RealEnergyOut] / 1000  # kwh
         else:
             return None
 
@@ -342,6 +409,7 @@ def mqtt_on_connect(client, userdata, flags, rc):
     else:
         g_log.error("MQTT: Client bad RC; rc={}".format(rc))
 
+
 def mqtt_on_disconnect(client, userdata, rc):
     g_log.info("MQTT: Client disconnected; rc={}".format(rc))
     if rc != 0:
@@ -349,11 +417,84 @@ def mqtt_on_disconnect(client, userdata, rc):
     else:
         g_log.error("MQTT: Client bad RC; rc={}".format(rc))
 
-#
-# Script Start
-#
 
-serial_read_chunk_size=100
+def get_voltage_topic(name, sub_topic):
+    return "{}/kaifa_voltage_{}/{}".format(g_cfg.get_export_mqtt_basetopic(), name, sub_topic)
+
+
+def get_current_topic(name, sub_topic):
+    return "{}/kaifa_current_{}/{}".format(g_cfg.get_export_mqtt_basetopic(), name, sub_topic)
+
+
+def get_power_topic(name, sub_topic):
+    return "{}/kaifa_power_{}/{}".format(g_cfg.get_export_mqtt_basetopic(), name, sub_topic)
+
+
+def get_energy_topic(name, sub_topic):
+    return "{}/kaifa_energy_{}/{}".format(g_cfg.get_export_mqtt_basetopic(), name, sub_topic)
+
+
+def mqtt_publish_configs():
+    def get_voltage_config(name):
+        full_name = "kaifa_voltage_{}".format(name)
+        return get_voltage_topic(name, "config"), {"name": full_name, "unique_id": full_name, "object_id": full_name, "device_class": "voltage", "state_class": "measurement",
+                                                   "unit_of_measurement": "V", "state_topic": get_voltage_topic(name, "state")}
+
+    def get_current_config(name):
+        full_name = "kaifa_current_{}".format(name)
+        return get_current_topic(name, "config"), {"name": full_name, "unique_id": full_name, "object_id": full_name, "device_class": "current", "state_class": "measurement",
+                                                   "unit_of_measurement": "A", "state_topic": get_current_topic(name, "state")}
+
+    def get_power_config(name):
+        full_name = "kaifa_power_{}".format(name)
+        return get_power_topic(name, "config"), {"name": full_name, "unique_id": full_name, "object_id": full_name, "device_class": "power", "state_class": "measurement",
+                                                 "unit_of_measurement": "W", "state_topic": get_power_topic(name, "state")}
+
+    def get_energy_config(name):
+        full_name = "kaifa_energy_{}".format(name)
+        return get_energy_topic(name, "config"), {"name": full_name, "unique_id": full_name, "object_id": full_name, "device_class": "energy", "state_class": "total_increasing",
+                                                  "unit_of_measurement": "kWh", "state_topic": get_energy_topic(name, "state")}
+
+    for config_topic, config in [get_voltage_config("l1"), get_voltage_config("l2"), get_voltage_config("l3"),
+                                 get_current_config("l1"), get_current_config("l2"), get_current_config("l3"),
+                                 get_power_config("in"), get_power_config("out"), get_energy_config("in"),
+                                 get_energy_config("out")]:
+        config_json = json.dumps(config)
+        g_log.info("Publishing config topic {} with config {}".format(
+            config_topic, config_json))
+        mqtt_pub_ret = mqtt_client.publish(
+            config_topic, config_json, retain=True)
+        g_log.info("MQTT: Published config: rc: {} mid: {}".format(
+            mqtt_pub_ret[0], mqtt_pub_ret[1]))
+
+    # TODO error handling if one rc is not zero
+    mqtt_client.has_published_configs = True
+
+
+def mqtt_publish_state():
+    def publish(topic, value):
+        mqtt_pub_ret = mqtt_client.publish(topic, value)
+        g_log.info("MQTT: Publish state of topic {}: {} rc: {} mid: {}".format(
+            topic, value, mqtt_pub_ret[0], mqtt_pub_ret[1]))
+
+    topic_suffix = "state"
+    publish(get_voltage_topic("l1", topic_suffix), dec.get_voltage_l1())
+    publish(get_voltage_topic("l2", topic_suffix), dec.get_voltage_l2())
+    publish(get_voltage_topic("l3", topic_suffix), dec.get_voltage_l3())
+
+    publish(get_current_topic("l1", topic_suffix), dec.get_current_l1())
+    publish(get_current_topic("l2", topic_suffix), dec.get_current_l2())
+    publish(get_current_topic("l3", topic_suffix), dec.get_current_l3())
+
+    publish(get_power_topic("in", topic_suffix), dec.get_power_in())
+    publish(get_power_topic("out", topic_suffix), dec.get_power_out())
+
+    publish(get_energy_topic("in", topic_suffix), dec.get_total_energy_in())
+    publish(get_energy_topic("out", topic_suffix), dec.get_total_energy_out())
+
+
+# Script Start
+serial_read_chunk_size = 100
 
 g_cfg = Config(Constants.config_file)
 
@@ -371,12 +512,12 @@ except Exception as e:
 
 
 g_ser = serial.Serial(
-        port = g_cfg.get_port(),
-        baudrate = g_cfg.get_baud(),
-        parity = g_cfg.get_parity(),
-        stopbits = g_cfg.get_stopbits(),
-        bytesize = g_cfg.get_bytesize(),
-        timeout = g_cfg.get_interval())
+    port=g_cfg.get_port(),
+    baudrate=g_cfg.get_baud(),
+    parity=g_cfg.get_parity(),
+    stopbits=g_cfg.get_stopbits(),
+    bytesize=g_cfg.get_bytesize(),
+    timeout=g_cfg.get_interval())
 
 if g_cfg.get_supplier().upper() == SupplierTINETZ.name:
     g_supplier = SupplierTINETZ()
@@ -391,8 +532,11 @@ if g_cfg.get_export_format() == 'MQTT':
         mqtt_client = mqtt.Client("kaifareader")
         mqtt_client.on_connect = mqtt_on_connect
         mqtt_client.on_disconnect = mqtt_on_disconnect
-        mqtt_client.username_pw_set(g_cfg.get_export_mqtt_user(), g_cfg.get_export_mqtt_password())
-        mqtt_client.connect(g_cfg.get_export_mqtt_server(), port=g_cfg.get_export_mqtt_port())
+        mqtt_client.has_published_configs = False
+        mqtt_client.username_pw_set(
+            g_cfg.get_export_mqtt_user(), g_cfg.get_export_mqtt_password())
+        mqtt_client.connect(g_cfg.get_export_mqtt_server(),
+                            port=g_cfg.get_export_mqtt_port())
         mqtt_client.loop_start()
     except Exception as e:
         print("Failed to connect: " + str(e))
@@ -404,8 +548,10 @@ while True:
     frame1 = b''      # parsed telegram1
     frame2 = b''      # parsed telegram2
 
-    frame1_start_pos = -1          # pos of start bytes of telegram 1 (in stream)
-    frame2_start_pos = -1          # pos of start bytes of telegram 2 (in stream)
+    # pos of start bytes of telegram 1 (in stream)
+    frame1_start_pos = -1
+    # pos of start bytes of telegram 2 (in stream)
+    frame2_start_pos = -1
 
     # "telegram fetching loop" (as long as we have found two full telegrams)
     # frame1 = first telegram (68fafa68), frame2 = second telegram (68727268)
@@ -413,20 +559,21 @@ while True:
 
         # Read in chunks. Each chunk will wait as long as specified by
         # serial timeout. As the meters we tested send data every 5s the
-        # timeout must be <5. Lower timeouts make us fail quicker. 
+        # timeout must be <5. Lower timeouts make us fail quicker.
         byte_chunk = g_ser.read(size=serial_read_chunk_size)
         stream += byte_chunk
         frame1_start_pos = stream.find(g_supplier.frame1_start_bytes)
         frame2_start_pos = stream.find(g_supplier.frame2_start_bytes)
 
-        # fail as early as possible if we find the segment is not complete yet. 
+        # fail as early as possible if we find the segment is not complete yet.
         if (
            (stream.find(g_supplier.frame1_start_bytes) < 0) or
            (stream.find(g_supplier.frame2_start_bytes) <= 0) or
            (stream[-1:] != g_supplier.frame2_end_bytes) or
            (len(byte_chunk) == serial_read_chunk_size)
-           ):  
-            g_log.debug("pos: {} | {}".format(frame1_start_pos, frame2_start_pos))
+           ):
+            g_log.debug("pos: {} | {}".format(
+                frame1_start_pos, frame2_start_pos))
             g_log.debug("incomplete segment: {} ".format(stream))
             g_log.debug("received chunk: {} ".format(byte_chunk))
             continue
@@ -441,7 +588,8 @@ while True:
                 continue
 
             # we have found at least two complete telegrams
-            regex = binascii.unhexlify('28'+g_supplier.frame1_start_bytes_hex+'7c'+g_supplier.frame2_start_bytes_hex+'29')  # re = '(..|..)'
+            regex = binascii.unhexlify('28'+g_supplier.frame1_start_bytes_hex +
+                                       '7c'+g_supplier.frame2_start_bytes_hex+'29')  # re = '(..|..)'
             l = re.split(regex, stream)
             l = list(filter(None, l))  # remove empty elements
             # l after split (here in following example in hex)
@@ -459,7 +607,8 @@ while True:
 
             # check for weird result -> exit
             if (len(frame1) == 0) or (len(frame2) == 0):
-                g_log.error("Frame1 or Frame2 is empty: {} | {}".format(frame1, frame2))
+                g_log.error(
+                    "Frame1 or Frame2 is empty: {} | {}".format(frame1, frame2))
                 sys.exit(30)
 
             g_log.debug("TELEGRAM1:\n{}\n".format(binascii.hexlify(frame1)))
@@ -470,22 +619,26 @@ while True:
     dec = Decrypt(g_supplier, frame1, frame2, g_cfg.get_key_hex_string())
     dec.parse_all()
 
-    g_log.info("1.8.0: {}".format(str(dec.get_act_energy_pos_kwh())))
-    g_log.info("2.8.0: {}".format(str(dec.get_act_energy_neg_kwh())))
+    g_log.info("1.8.0: {}".format(str(dec.get_total_energy_in())))
+    g_log.info("2.8.0: {}".format(str(dec.get_total_energy_out())))
 
     # export solarview
     if g_cfg.get_export_format() == 'SOLARVIEW':
-        exp = Exporter(g_cfg.get_export_file_abspath(), g_cfg.get_export_format())
-        exp.set_value(Obis.RealEnergyIn_S, dec.get_act_energy_pos_kwh())
-        exp.set_value(Obis.RealEnergyOut_S, dec.get_act_energy_neg_kwh())
+        exp = Exporter(g_cfg.get_export_file_abspath(),
+                       g_cfg.get_export_format())
+        exp.set_value(Obis.RealEnergyIn_S, dec.get_total_energy_in())
+        exp.set_value(Obis.RealEnergyOut_S, dec.get_total_energy_out())
         if not exp.write_out():
             g_log.error("Could not export data")
             sys.exit(50)
 
     # export mqtt
     if g_cfg.get_export_format() == 'MQTT':
-        mqtt_pub_ret = mqtt_client.publish("{}/RealEnergyIn_S".format(g_cfg.get_export_mqtt_basetopic()), dec.get_act_energy_pos_kwh())
-        g_log.debug("MQTT: Publish message: rc: {} mid: {}".format(mqtt_pub_ret[0], mqtt_pub_ret[1]))
-        mqtt_pub_ret = mqtt_client.publish("{}/RealEnergyOut_S".format(g_cfg.get_export_mqtt_basetopic()), dec.get_act_energy_neg_kwh())
-        g_log.debug("MQTT: Publish message: rc: {} mid: {}".format(mqtt_pub_ret[0], mqtt_pub_ret[1]))
+        if not mqtt_client.is_connected():
+            g_log.error("MQTT client not connected!")
+            continue
 
+        if not mqtt_client.has_published_configs:
+            mqtt_publish_configs()
+
+        mqtt_publish_state()

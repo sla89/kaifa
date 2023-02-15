@@ -83,6 +83,16 @@ is supported.
   `export_mqtt_user`, `export_mqtt_password` and `export_mqtt_basetopic`
   have to be set.
 
+The following topics are published with prefix `export_mqtt_basetopic`
+- Voltage L1 - L3
+- Current L1 - L3
+- Power In
+- Power Out
+- Energy In (total in kWh)
+- Energy Out (total in kWh)
+
+Support is extended for Home Assistant. Set `export_mqtt_basetopic` to `homeassistant/sensor` to make it compatible with the MQTT integration and its auto discovery functionality.
+
 ## Installation
 
 ### Systemd automatic service
