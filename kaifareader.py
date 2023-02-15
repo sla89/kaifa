@@ -474,7 +474,7 @@ def mqtt_publish_configs():
 def mqtt_publish_state():
     def publish(topic, value):
         mqtt_pub_ret = mqtt_client.publish(topic, value)
-        g_log.info("MQTT: Publish state of topic {}: {} rc: {} mid: {}".format(
+        g_log.debug("MQTT: Publish state of topic {}: {} rc: {} mid: {}".format(
             topic, value, mqtt_pub_ret[0], mqtt_pub_ret[1]))
 
     topic_suffix = "state"
